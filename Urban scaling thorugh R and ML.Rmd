@@ -1,0 +1,161 @@
+---
+title: "Exploring-Urban-Scaling-Laws-in-Western-Australia-Using-R"
+author: "Uzair Shafique"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+# Load libraries
+library(gamlss)
+library(gamlss.data) 
+library(ggplot2) 
+```
+
+
+
+```{r}
+# Load data
+data(grip)
+```
+
+
+```{r pressure, echo=FALSE}
+# Select a sample of 1200 observations
+set.seed(123) # Use a unique seed number given to you
+index <- sample(1:3866, 1200)
+mydata <- grip[index, ]
+
+```
+
+
+```{r pressure, echo=FALSE}
+# Verify the sample size
+dim(mydata)
+```
+
+
+```{r pressure, echo=FALSE}
+# Plot grip against age
+plot(
+        mydata$age, mydata$grip, 
+        main = "Grip Strength vs Age", 
+        xlab = "Age (years)", 
+        ylab = "Grip Strength (kg)",
+        pch = 19, 
+        col = "blue"
+)
+
+```
+
+
+```{r pressure, echo=FALSE}
+# Fit the BCCG distribution using the LMS method
+library(gamlss.dist) # Ensure this library is loaded for BCCG distribution
+gbccg <- gamlss(
+        grip ~ pb(age), 
+        sigma.fo = ~ pb(age), 
+        nu.fo = ~ pb(age), 
+        data = na.omit(mydata), 
+        family = BCCG
+)
+
+
+# Check the degrees of freedom used for smoothing
+edf(gbccg)
+
+
+```
+
+
+```{r pressure, echo=FALSE}
+# Fit BCT and BCPE distributions, using gbccg as starting values
+gbct <- gamlss(
+        grip ~ pb(age), 
+        sigma.fo = ~ pb(age), 
+        nu.fo = ~ pb(age), 
+        tau.fo = ~ pb(age), 
+        data = na.omit(mydata),
+        family = BCT, 
+        start.from = gbccg
+)
+
+
+# Effective degrees of freedom
+edf(gbct)
+
+# Compare models using GAIC
+gaic_gbccg <- GAIC(gbccg)
+gaic_gbct <- GAIC(gbct)
+
+# Output GAIC for comparison
+cat("GAIC for BCCG:", gaic_gbccg, "\nGAIC for BCT:", gaic_gbct, "\n")
+```
+
+
+```{r pressure, echo=FALSE}
+# Plot the fitted parameters for BCCG and BCT models
+# Calculate fitted values for both models
+age_seq <- seq(min(na.omit(mydata$age)), max(na.omit(mydata$age)), length.out = 100)
+fitted_values_bccg <- predict(gbccg, newdata = data.frame(age = age_seq), type = "response")
+fitted_values_gbct <- predict(gbct, newdata = data.frame(age = age_seq), type = "response")
+
+# Create a data frame for plotting
+plot_data <- data.frame(
+        Age = rep(age_seq, 2),
+        GripStrength = c(fitted_values_bccg, fitted_values_gbct),
+        Model = factor(rep(c("BCCG", "BCT"), each = 100))
+)
+
+# Plot the fitted models using ggplot2
+ggplot(plot_data, aes(x = Age, y = GripStrength, color = Model)) +
+        geom_line() +
+        labs(
+                title = "Fitted Grip Strength Models",
+                x = "Age",
+                y = "Predicted Grip Strength",
+                color = "Model"
+        ) +
+        theme_minimal()
+
+
+```
+
+```{r pressure, echo=FALSE}
+# Obtain and compare centile plots for the fitted models
+centiles(gbccg, c(25, 50, 75))
+centiles(gbct, c(25, 50, 75))
+
+```
+
+```{r pressure, echo=FALSE}
+# Investigate the residuals
+plot(residuals(gbccg))
+
+
+```
+
+```{r pressure, echo=FALSE}
+wp(gbccg)
+
+```
+
+```{r pressure, echo=FALSE}
+Q.stats(gbccg)
+
+```
+
+```{r pressure, echo=FALSE}
+plot(residuals(gbct))
+
+```
+
+```{r pressure, echo=FALSE}
+wp(gbct)
+
+```
+
+```{r pressure, echo=FALSE}
+Q.stats(gbct)
+```
